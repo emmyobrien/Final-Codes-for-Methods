@@ -1,0 +1,289 @@
+Looping plots
+
+FQ;s
+
+#Looping Plots FW
+
+# FQ_Prefecture_Forest_Plot_Highlight.R
+# Date: July 29, 2025
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+library(stringr)
+library(purrr)
+
+# Set working directory and file path
+setwd("/Volumes/Samsung_T5/Emmy_Thesis/")
+file_path <- "FQ_July_Multi_Uni_Results.xlsx"
+
+# New sheets for FQ data
+sheets <- c("FQ_Prefecture_2008-23_Multi", "FQ_Prefecture_2008-23_Un", 
+            "FQ_Prefecture_2015_Multi", "FQ_Prefecture_2015_Un")
+
+# Lookup for prefecture names
+pref_lookup <- c(
+  "SexF:PrefectureHokkaido" = "Hokkaido", "SexF:PrefectureAomori" = "Aomori",
+  "SexF:PrefectureIwate" = "Iwate", "SexF:PrefectureMiyagi" = "Miyagi",
+  "SexF:PrefectureAkita" = "Akita", "SexF:PrefectureYamagata" = "Yamagata",
+  "SexF:PrefectureFukushima" = "Fukushima", "SexF:PrefectureIbaraki" = "Ibaraki",
+  "SexF:PrefectureTochigi" = "Tochigi", "SexF:PrefectureGunma" = "Gunma",
+  "SexF:PrefectureSaitama" = "Saitama", "SexF:PrefectureChiba" = "Chiba",
+  "SexF:PrefectureKanagawa" = "Kanagawa", "SexF:PrefectureNiigata" = "Niigata",
+  "SexF:PrefectureToyama" = "Toyama", "SexF:PrefectureIshikawa" = "Ishikawa",
+  "SexF:PrefectureFukui" = "Fukui", "SexF:PrefectureYamanashi" = "Yamanashi",
+  "SexF:PrefectureNagano" = "Nagano", "SexF:PrefectureGifu" = "Gifu",
+  "SexF:PrefectureShizuoka" = "Shizuoka", "SexF:PrefectureAichi" = "Aichi",
+  "SexF:PrefectureMie" = "Mie", "SexF:PrefectureShiga" = "Shiga",
+  "SexF:PrefectureKyoto" = "Kyoto", "SexF:PrefectureOsaka" = "Osaka",
+  "SexF:PrefectureHyogo" = "Hyogo", "SexF:PrefectureNara" = "Nara",
+  "SexF:PrefectureWakayama" = "Wakayama", "SexF:PrefectureTottori" = "Tottori",
+  "SexF:PrefectureShimane" = "Shimane", "SexF:PrefectureOkayama" = "Okayama",
+  "SexF:PrefectureHiroshima" = "Hiroshima", "SexF:PrefectureYamaguchi" = "Yamaguchi",
+  "SexF:PrefectureTokushima" = "Tokushima", "SexF:PrefectureKagawa" = "Kagawa",
+  "SexF:PrefectureEhime" = "Ehime", "SexF:PrefectureKochi" = "Kochi",
+  "SexF:PrefectureFukuoka" = "Fukuoka", "SexF:PrefectureNagasaki" = "Nagasaki",
+  "SexF:PrefectureSaga" = "Saga", "SexF:PrefectureKumamoto" = "Kumamoto",
+  "SexF:PrefectureOita" = "Oita", "SexF:PrefectureMiyazaki" = "Miyazaki",
+  "SexF:PrefectureKagoshima" = "Kagoshima", "SexF:PrefectureOkinawa" = "Okinawa",
+  "SexF:PrefectureTokyo" = "Tokyo"
+)
+pref_order <- unname(pref_lookup)
+
+# Loop through all sheets
+for (sheet_name in sheets) {
+  res <- read_excel(file_path, sheet = sheet_name)
+  
+  # Filter to relevant interaction terms
+  res_pref <- res %>%
+    filter(term %in% names(pref_lookup)) %>%
+    mutate(prefecture = factor(pref_lookup[term], levels = rev(pref_order)))
+  
+  # Prepare for plotting
+  res_pref_plot <- res_pref %>%
+    mutate(
+      estimate_lab = sprintf("%.2f (%.2f–%.2f)", estimate, conf.low, conf.high),
+      p.value = case_when(
+        p.value < .001 ~ "<0.001",
+        TRUE ~ format(round(p.value, 3), nsmall = 3)
+      ),
+      significant = ifelse(suppressWarnings(as.numeric(p.value)) < 0.05, "Yes", "No")
+    )
+  
+  # Header row
+  header <- tibble(
+    prefecture = "Prefecture",
+    estimate_lab = "Odds Ratio (95% CI)",
+    estimate = NA,
+    conf.low = NA,
+    conf.high = NA,
+    p.value = "p-value",
+    significant = NA
+  )
+  
+  res_pref_plot <- bind_rows(header, res_pref_plot)
+  res_pref_plot$prefecture <- factor(res_pref_plot$prefecture, levels = rev(c("Prefecture", pref_order)))
+  
+  # Spacing
+  res_spaced <- res_pref_plot %>%
+    arrange(desc(prefecture)) %>%
+    group_split(row_number() %% 1 == 0) %>%
+    map_dfr(~ bind_rows(., tibble(
+      prefecture = "", estimate_lab = "", estimate = NA,
+      conf.low = NA, conf.high = NA, p.value = "", significant = NA
+    )))
+  
+  res_spaced$prefecture <- factor(res_spaced$prefecture, levels = rev(unique(res_spaced$prefecture)))
+  
+  # Left: Labels
+  p_left <- ggplot(res_spaced, aes(y = prefecture)) +
+    geom_text(aes(x = 0, label = prefecture), hjust = 0, fontface = "bold", size = 3) +
+    geom_text(aes(x = 1.8, label = estimate_lab), hjust = 0, size = 3) +
+    theme_void() +
+    coord_cartesian(xlim = c(0, 5))
+  
+  # Mid: Forest plot with significance
+  p_mid <- ggplot(res_spaced, aes(y = prefecture)) +
+    geom_point(aes(x = as.numeric(estimate), color = significant), shape = 15, size = 3, na.rm = TRUE) +
+    geom_linerange(aes(xmin = as.numeric(conf.low), xmax = as.numeric(conf.high), color = significant), na.rm = TRUE) +
+    geom_vline(xintercept = 1, linetype = "dashed") +
+    scale_color_manual(values = c("Yes" = "firebrick", "No" = "gray40"), na.translate = FALSE) +
+    annotate("text", x = 0.3, y = nrow(res_spaced), label = "Males at greater risk", size = 3) +
+    annotate("text", x = 1.5, y = nrow(res_spaced), label = "Females at greater risk", size = 3) +
+    coord_cartesian(xlim = c(-0.1, 2.1)) +
+    labs(x = paste("Odds of FQ-resistant E. coli by sex & prefecture -", sheet_name),
+         color = "Significant\n(p < 0.05)") +
+    theme_classic() +
+    theme(
+      axis.line.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      axis.text.y = element_blank(),
+      axis.title.y = element_blank(),
+      legend.position = "bottom"
+    )
+  
+  # Right: p-values
+  p_right <- ggplot(res_spaced) +
+    geom_text(aes(x = 0, y = prefecture, label = p.value), hjust = 0, size = 3) +
+    theme_void()
+  
+  # Layout
+  layout <- c(
+    area(t = 0, l = 0, b = 100, r = 3),
+    area(t = 0, l = 4, b = 100, r = 9),
+    area(t = 0, l = 9, b = 100, r = 11)
+  )
+  
+  final_plot <- p_left + p_mid + p_right + plot_layout(design = layout)
+  
+  # Save plot
+  ggsave(filename = paste0("ForestPlot_", sheet_name, ".png"),
+         plot = final_plot, width = 12, height = 10, dpi = 300)
+  
+  print(final_plot)
+}
+
+
+################################################################################################################################
+# Ceph_Prefecture_Forest_Plot_Highlight.R
+# Date: July 29, 2025
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+library(stringr)
+library(purrr)
+
+# Set working directory and file path
+setwd("/Volumes/Samsung_T5/Emmy_Thesis/")
+file_path <- "Ceph_July_Multi_Uni_Results.xlsx"
+
+# Sheets to loop over
+sheets <- c("CS_Prefecture_2008-23_Multi", "CS_Prefecture_2008-23_Un", 
+            "CS_Prefecture_2015_Multi", "CS_Prefecture_2015_Un")
+
+# Lookup for prefecture names
+pref_lookup <- c(
+  "SexF:PrefectureHokkaido" = "Hokkaido", "SexF:PrefectureAomori" = "Aomori",
+  "SexF:PrefectureIwate" = "Iwate", "SexF:PrefectureMiyagi" = "Miyagi",
+  "SexF:PrefectureAkita" = "Akita", "SexF:PrefectureYamagata" = "Yamagata",
+  "SexF:PrefectureFukushima" = "Fukushima", "SexF:PrefectureIbaraki" = "Ibaraki",
+  "SexF:PrefectureTochigi" = "Tochigi", "SexF:PrefectureGunma" = "Gunma",
+  "SexF:PrefectureSaitama" = "Saitama", "SexF:PrefectureChiba" = "Chiba",
+  "SexF:PrefectureKanagawa" = "Kanagawa", "SexF:PrefectureNiigata" = "Niigata",
+  "SexF:PrefectureToyama" = "Toyama", "SexF:PrefectureIshikawa" = "Ishikawa",
+  "SexF:PrefectureFukui" = "Fukui", "SexF:PrefectureYamanashi" = "Yamanashi",
+  "SexF:PrefectureNagano" = "Nagano", "SexF:PrefectureGifu" = "Gifu",
+  "SexF:PrefectureShizuoka" = "Shizuoka", "SexF:PrefectureAichi" = "Aichi",
+  "SexF:PrefectureMie" = "Mie", "SexF:PrefectureShiga" = "Shiga",
+  "SexF:PrefectureKyoto" = "Kyoto", "SexF:PrefectureOsaka" = "Osaka",
+  "SexF:PrefectureHyogo" = "Hyogo", "SexF:PrefectureNara" = "Nara",
+  "SexF:PrefectureWakayama" = "Wakayama", "SexF:PrefectureTottori" = "Tottori",
+  "SexF:PrefectureShimane" = "Shimane", "SexF:PrefectureOkayama" = "Okayama",
+  "SexF:PrefectureHiroshima" = "Hiroshima", "SexF:PrefectureYamaguchi" = "Yamaguchi",
+  "SexF:PrefectureTokushima" = "Tokushima", "SexF:PrefectureKagawa" = "Kagawa",
+  "SexF:PrefectureEhime" = "Ehime", "SexF:PrefectureKochi" = "Kochi",
+  "SexF:PrefectureFukuoka" = "Fukuoka", "SexF:PrefectureNagasaki" = "Nagasaki",
+  "SexF:PrefectureSaga" = "Saga", "SexF:PrefectureKumamoto" = "Kumamoto",
+  "SexF:PrefectureOita" = "Oita", "SexF:PrefectureMiyazaki" = "Miyazaki",
+  "SexF:PrefectureKagoshima" = "Kagoshima", "SexF:PrefectureOkinawa" = "Okinawa",
+  "SexF:PrefectureTokyo" = "Tokyo"
+)
+pref_order <- unname(pref_lookup)
+
+# Loop through each sheet
+for (sheet_name in sheets) {
+  
+  # Read sheet
+  res <- read_excel(file_path, sheet = sheet_name)
+  
+  # Filter and map prefecture terms
+  res_pref <- res %>%
+    filter(term %in% names(pref_lookup)) %>%
+    mutate(prefecture = factor(pref_lookup[term], levels = rev(pref_order)))
+  
+  # Format for plotting
+  res_pref_plot <- res_pref %>%
+    mutate(
+      estimate_lab = sprintf("%.2f (%.2f–%.2f)", estimate, conf.low, conf.high),
+      p.value = case_when(
+        p.value < .001 ~ "<0.001",
+        TRUE ~ format(round(p.value, 3), nsmall = 3)
+      ),
+      significant = ifelse(suppressWarnings(as.numeric(p.value)) < 0.05, "Yes", "No")
+    )
+  
+  # Add header row
+  header <- tibble(
+    prefecture = "Prefecture",
+    estimate_lab = "Odds Ratio (95% CI)",
+    estimate = NA,
+    conf.low = NA,
+    conf.high = NA,
+    p.value = "p-value",
+    significant = NA
+  )
+  
+  res_pref_plot <- bind_rows(header, res_pref_plot)
+  res_pref_plot$prefecture <- factor(res_pref_plot$prefecture, levels = rev(c("Prefecture", pref_order)))
+  
+  # Add spacing rows
+  res_spaced <- res_pref_plot %>%
+    arrange(desc(prefecture)) %>%
+    group_split(row_number() %% 1 == 0) %>%
+    map_dfr(~ bind_rows(., tibble(
+      prefecture = "", estimate_lab = "", estimate = NA,
+      conf.low = NA, conf.high = NA, p.value = "", significant = NA
+    )))
+  
+  res_spaced$prefecture <- factor(res_spaced$prefecture, levels = rev(unique(res_spaced$prefecture)))
+  
+  # Plot left panel (labels + OR)
+  p_left <- ggplot(res_spaced, aes(y = prefecture)) +
+    geom_text(aes(x = 0, label = prefecture), hjust = 0, fontface = "bold", size = 3) +
+    geom_text(aes(x = 1.8, label = estimate_lab), hjust = 0, size = 3) +
+    theme_void() +
+    coord_cartesian(xlim = c(0, 5))
+  
+  # Plot middle panel (forest plot with significance)
+  p_mid <- ggplot(res_spaced, aes(y = prefecture)) +
+    geom_point(aes(x = as.numeric(estimate), color = significant), shape = 15, size = 3, na.rm = TRUE) +
+    geom_linerange(aes(xmin = as.numeric(conf.low), xmax = as.numeric(conf.high), color = significant), na.rm = TRUE) +
+    geom_vline(xintercept = 1, linetype = "dashed") +
+    scale_color_manual(values = c("Yes" = "firebrick", "No" = "gray40"), na.translate = FALSE) +
+    annotate("text", x = 0.3, y = nrow(res_spaced), label = "Males at greater risk", size = 3) +
+    annotate("text", x = 1.5, y = nrow(res_spaced), label = "Females at greater risk", size = 3) +
+    coord_cartesian(xlim = c(-0.1, 2.1)) +
+    labs(x = paste("Odds of CS-resistant E. coli by sex & prefecture -", sheet_name),
+         color = "Significant\n(p < 0.05)") +
+    theme_classic() +
+    theme(
+      axis.line.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      axis.text.y = element_blank(),
+      axis.title.y = element_blank(),
+      legend.position = "bottom"
+    )
+  
+  # Plot right panel (p-values)
+  p_right <- ggplot(res_spaced) +
+    geom_text(aes(x = 0, y = prefecture, label = p.value), hjust = 0, size = 3) +
+    theme_void()
+  
+  # Patchwork layout
+  layout <- c(
+    area(t = 0, l = 0, b = 100, r = 3),
+    area(t = 0, l = 4, b = 100, r = 9),
+    area(t = 0, l = 9, b = 100, r = 11)
+  )
+  
+  final_plot <- p_left + p_mid + p_right + plot_layout(design = layout)
+  
+  # Save plot
+  ggsave(filename = paste0("ForestPlot_", sheet_name, ".png"),
+         plot = final_plot, width = 12, height = 10, dpi = 300)
+  
+  print(final_plot)
+}
