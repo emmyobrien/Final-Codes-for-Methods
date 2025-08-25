@@ -1,0 +1,248 @@
+
+#This is an alteration fo Ceph_July 29 (same as FQ_July 29) to adjust some errors
+#I ran this code on August 25th, 2025
+
+setwd("/Volumes/Samsung_T5/Emmy_Thesis/")
+getwd()
+
+library(tidyverse)
+library(tidyverse)
+library(dplyr)
+
+install.packages("broom")
+library(broom)
+
+#Ready? Let's go
+
+#Read the .csv file
+
+JANIS_MASTER <- read.csv("JANIS_WHO_GLASS_Region_bed.csv")
+head(JANIS_MASTER)
+
+
+#Remove pre-2015
+
+JANIS_MASTER <- JANIS_MASTER %>% 
+  filter(Year > 2014)
+
+unique(JANIS_MASTER$Year)
+#bring it down to 674,785 observations
+
+# Where Missing + NA = NA and S + NA = 0(limits the number of missing variables)
+
+JANIS_MASTER <- JANIS_MASTER %>%
+  mutate(CS_binary = case_when(
+    CTX_Clean == "R" & CTRX_Clean == "R" ~ "1",
+    CTX_Clean == "R" & CTRX_Clean == "Not R" ~ "S and R",
+    CTX_Clean == "R" & CTRX_Clean == "Missing" ~ "1",
+    CTX_Clean == "R" & is.na(CTRX_Clean)  ~ "1",
+    CTX_Clean == "Not R" & CTRX_Clean == "R" ~ "S and R",
+    CTX_Clean == "Not R" & CTRX_Clean == "Not R" ~ "0",
+    CTX_Clean == "Not R" & CTRX_Clean == "Missing" ~ "0",
+    CTX_Clean == "Not R" & is.na(CTRX_Clean) ~ "0",
+    CTX_Clean == "Missing" & CTRX_Clean == "R" ~ "1",
+    CTX_Clean == "Missing" & CTRX_Clean == "Not R" ~ "0",
+    CTX_Clean == "Missing" & CTRX_Clean == "Missing" ~ "Missing",
+    CTX_Clean == "Missing" & is.na(CTRX_Clean) ~ NA_character_,
+    is.na(CTX_Clean) & CTRX_Clean == "R" ~ "1",
+    is.na(CTX_Clean) & CTRX_Clean == "Not R" ~ "0",
+    is.na(CTX_Clean) & is.na(CTRX_Clean) ~ NA_character_,
+    is.na(CTX_Clean) & CTRX_Clean == "Missing" ~ NA_character_,
+    CTRX_Clean == "R" & CTX_Clean == "R" ~ "1",
+    CTRX_Clean == "R" & CTX_Clean == "Not R" ~ "S and R",
+    CTRX_Clean == "R" & CTX_Clean == "Missing" ~ "1",
+    CTRX_Clean == "R" & is.na(CTX_Clean) ~ "1",
+    CTRX_Clean == "Not R" & CTX_Clean == "R" ~ "S and R",
+    CTRX_Clean == "Not R" & CTX_Clean == "Not R" ~ "0",
+    CTRX_Clean == "Not R" & CTX_Clean == "Missing" ~ "0",
+    CTRX_Clean == "Not R" & is.na(CTX_Clean) ~ "0",
+    CTRX_Clean == "Missing" & CTX_Clean == "R" ~ "1",
+    CTRX_Clean == "Missing" & CTX_Clean == "Not R" ~ "0",
+    CTRX_Clean == "Missing" & CTX_Clean == "Missing" ~ "Missing",
+    CTRX_Clean == "Missing" & is.na(CTX_Clean) ~ NA_character_,
+    is.na(CTRX_Clean) & CTX_Clean == "R" ~ "1",
+    is.na(CTRX_Clean) & CTX_Clean == "Not R" ~ "0",
+    is.na(CTRX_Clean) & CTX_Clean == "Missing" ~ "Missing",
+    is.na(CTRX_Clean) & is.na(CTX_Clean) ~ NA_character_
+  ))
+
+table(JANIS_MASTER$CS_binary)
+
+#Remove all rows with NA, Missing, S and NA, S and R
+
+#Clean the data set: Remove all rows where the outcome of the CS_binary column is NA, "Missing", "S and NA", or "S and R"
+
+JANIS_MASTER_Ceph <- JANIS_MASTER %>%
+  filter(!is.na(CS_binary),
+         !CS_binary %in% c("Missing", "S and R"))
+
+head(JANIS_MASTER_Ceph)
+table(JANIS_MASTER_Ceph$CS_binary)
+
+#2008-2023
+
+#644271 observations remaining
+#572,983 0 and 71,288 1
+
+#post 2015 only
+#527,256 0's and 59,460 1's
+
+#Convert the variables into factors, and re-level so that "M", "Kanto", 0, 2023, Outpatient, and <200 are baseline
+
+#CS_binary
+JANIS_MASTER_Ceph$CS_binary <- relevel(factor(JANIS_MASTER_Ceph$CS_binary), ref = "0")
+unique(JANIS_MASTER_Ceph$CS_binary)
+
+#Sex
+JANIS_MASTER_Ceph$Sex <- as.factor(JANIS_MASTER_Ceph$Sex)
+JANIS_MASTER_Ceph$Sex <- relevel(JANIS_MASTER_Ceph$Sex, ref = "M")
+unique(JANIS_MASTER_Ceph$Sex)
+#Region
+JANIS_MASTER_Ceph$Region <- factor(JANIS_MASTER_Ceph$Region, 
+                                   levels = c("Kanto", "Hokkaido", "Tohoku", 
+                                              "Tokai", "Kinki(Kansai)", "Chugoku", 
+                                              "Shikoku", "Kyushu", "Okinawa"))
+unique(JANIS_MASTER_Ceph$Region)
+
+#Department
+JANIS_MASTER_Ceph$Department <- factor(JANIS_MASTER_Ceph$Department, 
+                                       levels = c("Outpatient", "Inpatient"))
+unique(JANIS_MASTER_Ceph$Department)
+
+
+#Year                                   
+JANIS_MASTER_Ceph$Year <- factor(JANIS_MASTER_Ceph$Year, 
+                                 levels = c("2023", "2008","2009","2010","2011",
+                                            "2012","2013","2014","2015","2016",
+                                            "2017","2018", "2019", "2020","2021",
+                                            "2022")) 
+unique(JANIS_MASTER_Ceph$Year)
+
+#Bedsize
+JANIS_MASTER_Ceph$bed_cat<- factor(JANIS_MASTER_Ceph$bed_cat, 
+                                   levels = c("<200", "=>200"))
+unique(JANIS_MASTER_Ceph$bed_cat)
+
+#Re-level the ages 
+
+#5-year age bands(including 0)
+#80-84 will be reference because of the greatest number of instances (122,033)
+
+
+JANIS_MASTER_Ceph$age_cat_95 <- factor(JANIS_MASTER_Ceph$age_cat_95, levels = c("80-84", "0-14", "15-19", "20-24", "25-29",
+                                                                                  "30-34", "35-39", "40-44", "45-49", "50-54", "55-59", 
+                                                                                  "60-64", "65-69", "70-74", "75-79", "85-89", "90-94", 
+                                                                                  "95+"))
+
+unique(JANIS_MASTER_Ceph$age_cat_95)
+
+
+#5(excluding 0) 
+
+mutate(age_cat_95_0 = factor(ge_cat_95_0, levels = c("0", "1-14", "15-19", "20-24", "25-29",
+                                                "30-34", "35-39", "40-44", "45-49", "50-54", "55-59",
+                                                "60-64", "65-69", "70-74", "75-79", "80-84", "85-89", "90-94", 
+                                                "95-99", "100-104", "105-109", "110-115")))
+
+unique(JANIS_MASTER_Ceph$age_cat_95_0)
+
+
+
+#Re-level the Prefectures
+
+#Prefecture
+JANIS_MASTER_Ceph$Prefecture <- factor(JANIS_MASTER_Ceph$Prefecture,
+                                       levels = c("Tokyo", "Hokkaido", "Aomori", "Iwate", "Miyagi", "Akita",
+                                                  "Yamagata", "Fukushima", "Ibaraki", "Tochigi", "Gunma",
+                                                  "Saitama", "Chiba", "Kanagawa", "Niigata", "Toyama",
+                                                  "Ishikawa", "Fukui", "Yamanashi", "Nagano", "Gifu",
+                                                  "Shizuoka", "Aichi", "Mie", "Shiga", "Kyoto", "Osaka",
+                                                  "Hyogo", "Nara", "Wakayama", "Tottori", "Shimane",
+                                                  "Okayama", "Hiroshima", "Yamaguchi", "Tokushima",
+                                                  "Kagawa", "Ehime", "Kochi", "Fukuoka", "Nagasaki","Saga",
+                                                  "Kumamoto", "Oita", "Miyazaki", "Kagoshima",
+                                                  "Okinawa" ))
+
+unique(JANIS_MASTER_Ceph$Prefecture )
+
+# Prefecture 2008–23 (#About 20-30 seconds to run)
+
+Model_CS_Sex_Age_Prefecture_95 <- glm(CS_binary ~ Sex + age_cat_95*Sex + Prefecture*Sex + Year + bed_cat + Department, 
+                                      data = JANIS_MASTER_Ceph, family = binomial())
+
+summary(Model_CS_Sex_Age_Prefecture_95)
+
+# Univariate check 2008–23
+
+Univariate_CS_Sex_Age_Prefecture_95 <- glm(CS_binary ~ Sex + Prefecture*Sex + Year, 
+                                           data = JANIS_MASTER_Ceph, family = binomial())
+
+summary(Univariate_CS_Sex_Age_Prefecture_95)
+
+# Only 2015 onward
+
+Model_CS_Sex_Age_Prefecture_95_2015 <- glm(CS_binary ~ Sex + age_cat_95*Sex + Prefecture*Sex + Year + bed_cat + Department, 
+                                           data = JANIS_MASTER_Ceph, family = binomial())
+
+summary(Model_CS_Sex_Age_Prefecture_95_2015)
+
+# Univariate check 2015 onward
+
+Univariate_CS_Sex_Age_Prefecture_95_2015 <- glm(CS_binary ~ Sex + Prefecture*Sex + Year, 
+                                                data = JANIS_MASTER_Ceph, family = binomial())
+
+summary(Univariate_CS_Sex_Age_Prefecture_95_2015)
+
+
+#Getting results, transforming them, and storying into an excell file
+results_CS_Prefecture_full <- tidy(Model_CS_Sex_Age_Prefecture_95) %>%
+  mutate(
+    conf.low = exp(estimate - 1.96 * std.error),
+    conf.high = exp(estimate + 1.96 * std.error),
+    estimate = exp(estimate)
+  )
+
+# Univariate 2008–2015
+results_CS_Prefecture_full_univariate <- tidy(Univariate_CS_Sex_Age_Prefecture_95) %>%
+  mutate(
+    conf.low = exp(estimate - 1.96 * std.error),
+    conf.high = exp(estimate + 1.96 * std.error),
+    estimate = exp(estimate)
+  )
+
+# 2015 onward multivariable
+results_CS_Prefecture_2015 <- tidy(Model_CS_Sex_Age_Prefecture_95_2015) %>%
+  mutate(
+    conf.low = exp(estimate - 1.96 * std.error),
+    conf.high = exp(estimate + 1.96 * std.error),
+    estimate = exp(estimate)
+  )
+
+# 2015 onward univariate
+results_CS_Prefecture_2015_univariate <- tidy(Univariate_CS_Sex_Age_Prefecture_95_2015) %>%
+  mutate(
+    conf.low = exp(estimate - 1.96 * std.error),
+    conf.high = exp(estimate + 1.96 * std.error),
+    estimate = exp(estimate)
+  )
+
+# Export to Excel
+install.packages("openxlsx")
+library(openxlsx)
+
+wb_CS <- createWorkbook()
+
+addWorksheet(wb_CS, "CS_Prefecture_2008-23")
+writeData(wb_CS, "CS_Prefecture_2008-23", results_CS_Prefecture_full)
+
+addWorksheet(wb_CS, "CS_Prefecture_2008-23_Un")
+writeData(wb_CS, "CS_Prefecture_2008-23_Un", results_CS_Prefecture_full_univariate)
+
+addWorksheet(wb_CS, "CS_Prefecture_2015_Multi")
+writeData(wb_CS, "CS_Prefecture_2015_Multi", results_CS_Prefecture_2015)
+
+addWorksheet(wb_CS, "CS_Prefecture_2015_Un")
+writeData(wb_CS, "CS_Prefecture_2015_Un", results_CS_Prefecture_2015_univariate)
+
+saveWorkbook(wb_CS, "Ceph_July_Multi_Uni_Results_Aug.xlsx", overwrite = TRUE)
+
