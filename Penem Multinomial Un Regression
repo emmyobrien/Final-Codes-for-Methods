@@ -1,0 +1,283 @@
+#Ready? Let's go
+
+#July 29, 2025
+# Running 5-year age bands where the first age group is 0-15, for pre-2015 and post-2015
+
+setwd("/Volumes/Samsung_T5/Emmy_Thesis/")
+getwd()
+
+install.packages("tidyverse") 
+library(tidyverse)
+
+install.packages("broom")
+library(tidyverse)
+
+#Read the .csv file
+
+JANIS_MASTER <- read.csv("JANIS_WHO_GLASS_Region_bed.csv")
+head(JANIS_MASTER)
+colnames(JANIS_MASTER)
+
+unique(JANIS_MASTER$age_cat_95)
+
+install.packages("broom")
+library(broom)
+install.packages("dplyr")
+library(dplyr)
+
+##Remove pre-2015 (only 2nd round)
+
+JANIS_MASTER <- JANIS_MASTER %>% 
+  filter(Year > 2014)
+
+
+unique(JANIS_MASTER$Year)
+#bring it down to 674,785 observations
+
+# Where Missing + NA = NA and S + NA = 0(limits the number of missing variables)
+
+JANIS_MASTER <- JANIS_MASTER %>%
+  mutate(PM_binary = case_when(
+    IPM_Clean == "R" & MEPM_Clean == "R" ~ "1",
+    IPM_Clean == "R" & MEPM_Clean == "Not R" ~ "S and R",
+    IPM_Clean == "R" & MEPM_Clean == "Missing" ~ "1",
+    IPM_Clean == "R" & is.na(MEPM_Clean)  ~ "1",
+    IPM_Clean == "Not R" & MEPM_Clean == "R" ~ "S and R",
+    IPM_Clean == "Not R" & MEPM_Clean == "Not R" ~ "0",
+    IPM_Clean == "Not R" & MEPM_Clean == "Missing" ~ "0",
+    IPM_Clean == "Not R" & is.na(MEPM_Clean) ~ "0",
+    IPM_Clean == "Missing" & MEPM_Clean == "R" ~ "1",
+    IPM_Clean == "Missing" & MEPM_Clean == "Not R" ~ "0",
+    IPM_Clean == "Missing" & MEPM_Clean == "Missing" ~ "Missing",
+    IPM_Clean == "Missing" & is.na(MEPM_Clean) ~ NA_character_,
+    is.na(IPM_Clean) & MEPM_Clean == "R" ~ "1",
+    is.na(IPM_Clean) & MEPM_Clean == "Not R" ~ "0",
+    is.na(IPM_Clean) & is.na(MEPM_Clean) ~ NA_character_,
+    is.na(IPM_Clean) & MEPM_Clean == "Missing" ~ NA_character_,
+    MEPM_Clean == "R" & IPM_Clean == "R" ~ "1",
+    MEPM_Clean == "R" & IPM_Clean == "Not R" ~ "S and R",
+    MEPM_Clean == "R" & IPM_Clean == "Missing" ~ "1",
+    MEPM_Clean == "R" & is.na(IPM_Clean) ~ "1",
+    MEPM_Clean == "Not R" & IPM_Clean == "R" ~ "S and R",
+    MEPM_Clean == "Not R" & IPM_Clean == "Not R" ~ "0",
+    MEPM_Clean == "Not R" & IPM_Clean == "Missing" ~ "0",
+    MEPM_Clean == "Not R" & is.na(IPM_Clean) ~ "0",
+    MEPM_Clean == "Missing" & IPM_Clean == "R" ~ "1",
+    MEPM_Clean == "Missing" & IPM_Clean == "Not R" ~ "0",
+    MEPM_Clean == "Missing" & IPM_Clean == "Missing" ~ "Missing",
+    MEPM_Clean == "Missing" & is.na(IPM_Clean) ~ NA_character_,
+    is.na(MEPM_Clean) & IPM_Clean == "R" ~ "1",
+    is.na(MEPM_Clean) & IPM_Clean == "Not R" ~ "0",
+    is.na(MEPM_Clean) & IPM_Clean == "Missing" ~ "Missing",
+    is.na(MEPM_Clean) & is.na(IPM_Clean) ~ NA_character_
+  ))
+
+table(JANIS_MASTER$PM_binary)
+
+#Remove all rows with NA, Missing, S and NA, S and R
+
+#Clean the data set: Remove all rows where the outcome of the PM_binary column is NA, "Missing", "S and NA", or "S and R"
+
+JANIS_MASTER_PM <- JANIS_MASTER %>%
+  filter(!is.na(PM_binary),
+         !PM_binary %in% c("Missing", "S and R"))
+
+head(JANIS_MASTER_PM)
+
+table(JANIS_MASTER_PM$PM_binary)
+
+#2008-2023
+
+#744,476 observations remaining
+#519,198 0's and 225,278 1's
+
+#post 2015 only
+#632,943 observations
+
+#437,928 0's and 195,015 1's
+
+#Convert the variables into factors, and re-level so that "M", "Kanto", 0, 2023, Outpatient, and <200 are baseline
+
+
+#PM_binary
+JANIS_MASTER_PM$PM_binary <- relevel(factor(JANIS_MASTER_PM$PM_binary), ref = "0")
+unique(JANIS_MASTER_PM$PM_binary)
+
+#Sex
+JANIS_MASTER_PM$Sex <- as.factor(JANIS_MASTER_PM$Sex)
+JANIS_MASTER_PM$Sex <- relevel(JANIS_MASTER_PM$Sex, ref = "M")
+unique(JANIS_MASTER_PM$Sex)
+
+#Region
+JANIS_MASTER_PM$Region <- factor(JANIS_MASTER_PM$Region, 
+                                 levels = c("Kanto", "Hokkaido", "Tohoku", 
+                                            "Tokai", "Kinki(Kansai)", "Chugoku", 
+                                            "Shikoku", "Kyushu", "Okinawa"))
+unique(JANIS_MASTER_PM$Region)
+
+#Department
+JANIS_MASTER_PM$Department <- factor(JANIS_MASTER_PM$Department, 
+                                     levels = c("Outpatient", "Inpatient"))
+unique(JANIS_MASTER_PM$Department)
+
+
+#Year                                   
+JANIS_MASTER_PM$Year <- factor(JANIS_MASTER_PM$Year, 
+                               levels = c("2023", "2008","2009","2010","2011",
+                                          "2012","2013","2014","2015","2016",
+                                          "2017","2018", "2019", "2020","2021",
+                                          "2022")) 
+unique(JANIS_MASTER_PM$Year)
+
+#Year (second round)
+JANIS_MASTER_PM$Year <- factor(JANIS_MASTER_PM$Year, 
+                               levels = c("2023", "2015","2016",
+                                          "2017","2018", "2019", "2020","2021",
+                                          "2022")) 
+
+unique(JANIS_MASTER_PM$Year)
+#Bedsize
+JANIS_MASTER_PM$bed_cat<- factor(JANIS_MASTER_PM$bed_cat, 
+                                 levels = c("<200", "=>200"))
+unique(JANIS_MASTER_PM$bed_cat)
+
+#Re-level the ages 
+
+#5-year age bands(including 0)
+#80-84 will be reference because of the greatest number of instances (___,___)
+
+JANIS_MASTER_PM$age_cat_95 <- factor(JANIS_MASTER_PM$age_cat_95, levels = c("80-84", "0-14", "15-19", "20-24", "25-29",
+                                                                            "30-34", "35-39", "40-44", "45-49", "50-54", "55-59", 
+                                                                            "60-64", "65-69", "70-74", "75-79", "85-89", "90-94", 
+                                                                            "95+"))
+
+unique(JANIS_MASTER_PM$age_cat_95)
+
+#Re-level the Prefectures
+
+#Prefecture
+JANIS_MASTER_PM$Prefecture <- factor(JANIS_MASTER_PM$Prefecture,
+                                     levels = c("Tokyo", "Hokkaido", "Aomori", "Iwate", "Miyagi", "Akita",
+                                                "Yamagata", "Fukushima", "Ibaraki", "Tochigi", "Gunma",
+                                                "Saitama", "Chiba", "Kanagawa", "Niigata", "Toyama",
+                                                "Ishikawa", "Fukui", "Yamanashi", "Nagano", "Gifu",
+                                                "Shizuoka", "Aichi", "Mie", "Shiga", "Kyoto", "Osaka",
+                                                "Hyogo", "Nara", "Wakayama", "Tottori", "Shimane",
+                                                "Okayama", "Hiroshima", "Yamaguchi", "Tokushima",
+                                                "Kagawa", "Ehime", "Kochi", "Fukuoka", "Nagasaki","Saga",
+                                                "Kumamoto", "Oita", "Miyazaki", "Kagoshima",
+                                                "Okinawa" ))
+
+unique(JANIS_MASTER_PM$Prefecture )
+
+#Prefecture  2008-23)
+
+Model_PM_Sex_Age_Prefecture_95<- glm(PM_binary ~ Sex + age_cat_95*Sex +  Prefecture*Sex + Year +  bed_cat + Department, data = JANIS_MASTER_PM, family = binomial ()) 
+
+summary(Model_PM_Sex_Age_Prefecture_95)
+
+#Univariate check 2008-23
+
+Univariate_PM_Sex_Age_Prefecture_95 <- glm(PM_binary ~ Sex + Prefecture*Sex + Year, data = JANIS_MASTER_PM, family = binomial ())
+
+summary(Univariate_PM_Sex_Age_Prefecture_95)
+
+#Only 2015 onward for age_cat_5_0 (go back to the top)
+
+Model_PM_Sex_Age_Prefecture_95_2015 <- glm(PM_binary ~ Sex + age_cat_95*Sex +  Prefecture*Sex + Year +  bed_cat + Department, data = JANIS_MASTER_PM, family = binomial ())
+summary(Model_PM_Sex_Age_Prefecture_95_2015)
+
+#Univariate check 2015 onward
+
+Univariate_PM_Sex_Age_Prefecture_95_2015 <- glm(PM_binary ~ Sex + Prefecture*Sex + Year, data = JANIS_MASTER_PM, family = binomial ())
+summary(Univariate_PM_Sex_Age_Prefecture_95_2015)
+
+#Getting results, transforming them, and storying into an excell file
+
+#Full multivariable
+results_PM_Prefecture_full <- tidy(Model_PM_Sex_Age_Prefecture_95)
+results_PM_Prefecture_full <- results_PM_Prefecture_full %>%
+  mutate(
+    conf.low = estimate - 1.96 * std.error,
+    conf.high = estimate + 1.96 * std.error,
+    estimate = exp(estimate),
+    conf.low = exp(conf.low),
+    conf.high = exp(conf.high)
+  )
+
+results_PM_Prefecture_full
+
+#Univariate 2008-2015
+results_PM_Prefecture_full_univariate <- tidy(Univariate_PM_Sex_Age_Prefecture_95)
+results_PM_Prefecture_full_univariate <- results_PM_Prefecture_full_univariate %>%
+  mutate(
+    conf.low = estimate - 1.96 * std.error,
+    conf.high = estimate + 1.96 * std.error,
+    estimate = exp(estimate),
+    conf.low = exp(conf.low),
+    conf.high = exp(conf.high)
+  )
+
+results_PM_Prefecture_full_univariate
+
+# 2015 onward #need to edit
+results_PM_Prefecture_2015 <- tidy(Model_PM_Sex_Age_Prefecture_95_2015)
+results_PM_Prefecture_2015 <- results_PM_Prefecture_2015 %>%
+  mutate(
+    conf.low = estimate - 1.96 * std.error,
+    conf.high = estimate + 1.96 * std.error,
+    estimate = exp(estimate),
+    conf.low = exp(conf.low),
+    conf.high = exp(conf.high)
+  )
+
+results_PM_Prefecture_2015
+
+#2015 Univariate #need to edit
+results_PM_Prefecture_2015_univariate <- tidy(Univariate_PM_Sex_Age_Prefecture_95_2015)
+results_PM_Prefecture_2015_univariate <- results_PM_Prefecture_2015_univariate %>%
+  mutate(
+    conf.low = estimate - 1.96 * std.error,
+    conf.high = estimate + 1.96 * std.error,
+    estimate = exp(estimate),
+    conf.low = exp(conf.low),
+    conf.high = exp(conf.high)
+  )
+
+results_PM_Prefecture_2015_univariate
+
+install.packages("openxlsx")
+library(openxlsx)
+
+# Create a workbook
+wb_PM <- NULL
+wb_PM <- createWorkbook()
+
+# Add worksheets and write data
+addWorksheet(wb_PM, "PM_Prefecture_2008-23")
+writeData(wb_PM, "PM_Prefecture_2008-23", results_PM_Prefecture_full)
+
+addWorksheet(wb_PM, "PM_Prefecture_2008-23_Un")
+writeData(wb_PM, "PM_Prefecture_2008-23_Un", results_PM_Prefecture_full_univariate)
+
+
+addWorksheet(wb_PM, "PM_Prefecture_2015_Multi")
+writeData(wb_PM, "PM_Prefecture_2015_Multi", results_PM_Prefecture_2015)
+
+
+addWorksheet(wb_PM, "PM_Prefecture_2015_Un")
+writeData(wb_PM, "PM_Prefecture_2015_Un", results_PM_Prefecture_2015_univariate)
+
+# Save the workbook
+saveWorkbook(wb_PM, "PM_July_Multi_Uni_Results.xlsx", overwrite = TRUE)
+
+#Making a separate workbook for the univariate results
+
+wb_PM <- createWorkbook()
+
+#Add worksheet
+addWorksheet(wb_PM, "PM_Prefecture_2008-23_Un")
+writeData(wb_PM, "PM_Prefecture_2008-23_Un", results_PM_Prefecture_full_univariate)
+
+# Save the workbook
+saveWorkbook(wb_PM, "PM_Prefecture_2008-23_Un.xlsx", overwrite = TRUE)
