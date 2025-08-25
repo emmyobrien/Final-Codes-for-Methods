@@ -1,0 +1,141 @@
+#Rate of Change of Prevelance
+
+
+setwd("/Volumes/Samsung_T5/Emmy_Thesis/")
+getwd()
+
+install.packages("tidyverse") 
+library(tidyverse)
+
+install.packages("broom")
+library(tidyverse)
+
+#Read the .csv file
+
+JANIS_MASTER <- read.csv("JANIS_WHO_GLASS_Region_bed.csv")
+head(JANIS_MASTER)
+colnames(JANIS_MASTER)
+
+unique(JANIS_MASTER$age_cat_95)
+
+install.packages("broom")
+library(broom)
+install.packages("dplyr")
+library(dplyr)
+
+##Remove pre-2015 (only 2nd round)
+
+JANIS_MASTER <- JANIS_MASTER %>% 
+  filter(Year > 2014)
+
+
+unique(JANIS_MASTER$Year)
+#bring it down to 674,785 observations
+
+# Where Missing + NA = NA and S + NA = 0(limits the number of missing variables)
+
+JANIS_MASTER <- JANIS_MASTER %>%
+  mutate(FQ_binary = case_when(
+    LVFX_Clean == "R" & CPFX_Clean == "R" ~ "1",
+    LVFX_Clean == "R" & CPFX_Clean == "Not R" ~ "S and R",
+    LVFX_Clean == "R" & CPFX_Clean == "Missing" ~ "1",
+    LVFX_Clean == "R" & is.na(CPFX_Clean)  ~ "1",
+    LVFX_Clean == "Not R" & CPFX_Clean == "R" ~ "S and R",
+    LVFX_Clean == "Not R" & CPFX_Clean == "Not R" ~ "0",
+    LVFX_Clean == "Not R" & CPFX_Clean == "Missing" ~ "0",
+    LVFX_Clean == "Not R" & is.na(CPFX_Clean) ~ "0",
+    LVFX_Clean == "Missing" & CPFX_Clean == "R" ~ "1",
+    LVFX_Clean == "Missing" & CPFX_Clean == "Not R" ~ "0",
+    LVFX_Clean == "Missing" & CPFX_Clean == "Missing" ~ "Missing",
+    LVFX_Clean == "Missing" & is.na(CPFX_Clean) ~ NA_character_,
+    is.na(LVFX_Clean) & CPFX_Clean == "R" ~ "1",
+    is.na(LVFX_Clean) & CPFX_Clean == "Not R" ~ "0",
+    is.na(LVFX_Clean) & is.na(CPFX_Clean) ~ NA_character_,
+    is.na(LVFX_Clean) & CPFX_Clean == "Missing" ~ NA_character_,
+    CPFX_Clean == "R" & LVFX_Clean == "R" ~ "1",
+    CPFX_Clean == "R" & LVFX_Clean == "Not R" ~ "S and R",
+    CPFX_Clean == "R" & LVFX_Clean == "Missing" ~ "1",
+    CPFX_Clean == "R" & is.na(LVFX_Clean) ~ "1",
+    CPFX_Clean == "Not R" & LVFX_Clean == "R" ~ "S and R",
+    CPFX_Clean == "Not R" & LVFX_Clean == "Not R" ~ "0",
+    CPFX_Clean == "Not R" & LVFX_Clean == "Missing" ~ "0",
+    CPFX_Clean == "Not R" & is.na(LVFX_Clean) ~ "0",
+    CPFX_Clean == "Missing" & LVFX_Clean == "R" ~ "1",
+    CPFX_Clean == "Missing" & LVFX_Clean == "Not R" ~ "0",
+    CPFX_Clean == "Missing" & LVFX_Clean == "Missing" ~ "Missing",
+    CPFX_Clean == "Missing" & is.na(LVFX_Clean) ~ NA_character_,
+    is.na(CPFX_Clean) & LVFX_Clean == "R" ~ "1",
+    is.na(CPFX_Clean) & LVFX_Clean == "Not R" ~ "0",
+    is.na(CPFX_Clean) & LVFX_Clean == "Missing" ~ "Missing",
+    is.na(CPFX_Clean) & is.na(LVFX_Clean) ~ NA_character_
+  ))
+
+table(JANIS_MASTER$FQ_binary)
+
+#Remove all rows with NA, Missing, S and NA, S and R
+
+#Clean the data set: Remove all rows where the outcome of the FQ_binary column is NA, "Missing", "S and NA", or "S and R"
+
+JANIS_MASTER_FQ<- JANIS_MASTER %>%
+  filter(!is.na(FQ_binary),
+         !FQ_binary %in% c("Missing", "S and R"))
+
+head(JANIS_MASTER_FQ)
+
+table(JANIS_MASTER_FQ$FQ_binary)
+
+# Ensure FQ_binary is numeric (1/0 instead of character)
+JANIS_MASTER_FQ <- JANIS_MASTER_FQ %>%
+  mutate(FQ_binary = as.numeric(as.character(FQ_binary)))
+
+# Filter only 2015 and 2023 data
+AMR_pref_data <- JANIS_MASTER_FQ %>%
+  filter(Year %in% c("2015", "2023")) %>%
+  group_by(Prefecture, Year) %>%
+  summarise(
+    Total = n(),
+    Resistant = sum(FQ_binary, na.rm = TRUE),
+    Prevalence = Resistant / Total
+  ) %>%
+  ungroup()
+
+# Reshape to wide format: one row per prefecture, columns for 2015 and 2023
+AMR_pref_wide <- AMR_pref_data %>%
+  select(Prefecture, Year, Prevalence) %>%
+  pivot_wider(names_from = Year, values_from = Prevalence, names_prefix = "Prevalence_")
+
+# View the resulting data frame
+head(AMR_pref_wide)
+
+# Make a rate of change column
+AMR_pref_wide <- AMR_pref_wide %>%
+  mutate(
+    Prevalence_2015 = Prevalence_2015 * 100,
+    Prevalence_2023 = Prevalence_2023 * 100,
+    Rate_of_Change = (Prevalence_2023 - Prevalence_2015) / Prevalence_2015
+  )
+
+#Getting annualized rate of change
+AMR_pref_wide <- AMR_pref_wide %>%
+  mutate(
+    Annualized_Rate = ifelse(
+      Prevalence_2015 > 0,
+      (Prevalence_2023 / Prevalence_2015)^(1 / 8) - 1,
+      NA  # Avoid dividing by zero or log(0)
+    )
+  )
+
+#Make into a percent
+
+mutate(Annualized_Rate = Annualized_Rate * 100)
+
+#Average rate of change by year between 2015-2023 potentially?
+
+
+
+
+
+
+
+
+
