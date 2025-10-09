@@ -1,0 +1,139 @@
+
+#Ceph sex age, 2008-23 onwards, 5-year bands
+
+
+setwd("/Users/emmyobrien/Desktop/Thesis_Results")
+getwd()
+
+
+install.packages("tidyverse")
+library(ggplot2)
+install.packages("tidyverse")
+library(dplyr)
+library(stringr)
+install.packages("patchwork")
+library(patchwork)
+
+# Read CSV
+sheets <- c("CS_Prefecture_2008-23_Aug")
+
+# Updated lookup table for 5-year age bands
+
+age_lookup <- c(
+    "SexF:age_cat_950-14" = "0-14",
+    "SexF:age_cat_9515-19" = "15-19",
+    "SexF:age_cat_9520-24" = "20-24",
+    "SexF:age_cat_9525-29" = "25-29",
+    "SexF:age_cat_9530-34" = "30-34",
+    "SexF:age_cat_9535-39" = "35-39",
+    "SexF:age_cat_9540-44" = "40-44",
+    "SexF:age_cat_9545-49" = "45-49",
+    "SexF:age_cat_9550-54" = "50-54",
+    "SexF:age_cat_9555-59" = "55-59",
+    "SexF:age_cat_9560-64" = "60-64",
+    "SexF:age_cat_9565-69" = "65-69",
+    "SexF:age_cat_9570-74" = "70-74",
+    "SexF:age_cat_9575-79" = "75-79",
+    "SexF:age_cat_9580-84" = "80-84",
+    "SexF:age_cat_9585-89" = "85-89",
+    "SexF:age_cat_9590-94" = "90-94",
+    "SexF:age_cat_9595+"   = "95+"
+  )
+
+# Apply lookup
+res$age_cat <- lookup[res$term]
+res$age_cat <- as.character(res$age_cat)
+
+# Define new age levels (descending order for y-axis)
+age_levels <- c(
+  "0-14", "15-19", "20-24", "25-29",
+  "30-34", "35-39", "40-44", "45-49", "50-54", "55-59",
+  "60-64", "65-69", "70-74", "75-79", "80-85", "85-89",
+  "90-94", "95-99", "100+"
+)
+
+res$age_cat <- factor(res$age_cat, levels = age_levels)
+
+# Plotting setup
+library(ggplot2)
+p <- ggplot(res, aes(y = age_cat)) + theme_classic()
+
+# Add points and intervals
+p <- p +
+  geom_point(aes(x = log.estimate), shape = 15, size = 3) +
+  geom_linerange(aes(xmin = log.conf.low, xmax = log.conf.high)) +
+  geom_vline(xintercept = 1, linetype="dashed") +
+  labs(
+    x = "Odds of third-generation cephalosporin-resistant E. coli by sex and age group 2008-23 (Baseline: Male, Ref: 80–85)",
+    y = "Age categories"
+  ) +
+  coord_cartesian(ylim = c(1, length(age_levels)+1), xlim = c(-0.1, 2.1)) +
+  annotate("text", x = 0.3, y = length(age_levels)+1, label = "Males at greater risk") +
+  annotate("text", x = 1.5, y = length(age_levels)+1, label = "Females at greater risk")
+
+# Remove y-axis text for alignment
+p_mid <- p + 
+  theme(axis.line.y = element_blank(),
+        axis.ticks.y= element_blank(),
+        axis.text.y= element_blank(),
+        axis.title.y= element_blank())
+
+# Format values for left and right plot
+library(dplyr)
+library(stringr)
+
+res_plot <- res |>
+  mutate(across(
+    c(log.estimate, log.conf.low, log.conf.high),
+    ~ formatC(.x, format = "f", digits = 2)
+  ),
+  estimate_lab = paste0(log.estimate, " (", log.conf.low, "-", log.conf.high, ")"),
+  p.value = case_when(
+    p.value < .001 ~ "<0.001",
+    round(p.value, 2) == .05 ~ as.character(round(p.value, 3)),
+    p.value < .01 ~ str_pad(as.character(round(p.value, 3)), width = 4, pad = "0", side = "right"),
+    TRUE ~ str_pad(as.character(round(p.value, 2)), width = 4, pad = "0", side = "right")
+  )) |>
+  bind_rows(data.frame(
+    age_cat = "Age",
+    estimate_lab = "Odds Ratio (95% CI)",
+    log.conf.low = "",
+    log.conf.high = "",
+    p.value = "p-value"
+  ))
+
+# Reorder levels for text plot
+res_plot$age_cat <- factor(res_plot$age_cat, levels = c(age_levels, "Age"))
+
+# Left panel (labels + odds ratios)
+p_left <- ggplot(res_plot, aes(y = age_cat)) +
+  geom_text(aes(x = 0, label = age_cat), hjust = 0, fontface = "bold") +
+  geom_text(aes(x = 1, label = estimate_lab),
+            hjust = 0,
+            fontface = ifelse(res_plot$estimate_lab == "Odds Ratio (95% CI)", "bold", "plain")) +
+  theme_void() +
+  coord_cartesian(xlim = c(0, 4))
+
+# Right panel (p-values)
+p_right <- ggplot(res_plot) +
+  geom_text(aes(x = 0, y = age_cat, label = p.value),
+            hjust = 0,
+            fontface = ifelse(res_plot$p.value == "p-value", "bold", "plain")) +
+  theme_void()
+
+# Assemble with patchwork
+library(patchwork)
+layout <- c(
+  area(t = 0, l = 0, b = 32, r = 3),
+  area(t = 1, l = 4, b = 32, r = 9),
+  area(t = 0, l = 9, b = 32, r = 11)
+)
+
+# Final plot
+Ceph_age_plot <- p_left + p_mid + p_right + plot_layout(design = layout)
+
+
+
+
+
+
