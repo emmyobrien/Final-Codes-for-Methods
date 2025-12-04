@@ -1,0 +1,366 @@
+#Getting the prevalance values for heatmaps
+
+#Start with FQ's
+
+
+setwd("/Volumes/Samsung_T5/Emmy_Thesis/")
+getwd()
+
+
+install.packages("broom")
+install.packages("dplyr")
+library(broom)
+library(dplyr)
+
+
+#Read the .csv file
+
+JANIS_MASTER <- read.csv("JANIS_WHO_GLASS_Region_bed.csv")
+head(JANIS_MASTER)
+colnames(JANIS_MASTER)
+
+
+unique(JANIS_MASTER$Year)
+
+# Where Missing + NA = NA and S + NA = 0(limits the number of missing variables)
+
+JANIS_MASTER <- JANIS_MASTER %>%
+  mutate(FQ_binary = case_when(
+    LVFX_Clean == "R" & CPFX_Clean == "R" ~ "1",
+    LVFX_Clean == "R" & CPFX_Clean == "Not R" ~ "S and R",
+    LVFX_Clean == "R" & CPFX_Clean == "Missing" ~ "1",
+    LVFX_Clean == "R" & is.na(CPFX_Clean)  ~ "1",
+    LVFX_Clean == "Not R" & CPFX_Clean == "R" ~ "S and R",
+    LVFX_Clean == "Not R" & CPFX_Clean == "Not R" ~ "0",
+    LVFX_Clean == "Not R" & CPFX_Clean == "Missing" ~ "0",
+    LVFX_Clean == "Not R" & is.na(CPFX_Clean) ~ "0",
+    LVFX_Clean == "Missing" & CPFX_Clean == "R" ~ "1",
+    LVFX_Clean == "Missing" & CPFX_Clean == "Not R" ~ "0",
+    LVFX_Clean == "Missing" & CPFX_Clean == "Missing" ~ "Missing",
+    LVFX_Clean == "Missing" & is.na(CPFX_Clean) ~ NA_character_,
+    is.na(LVFX_Clean) & CPFX_Clean == "R" ~ "1",
+    is.na(LVFX_Clean) & CPFX_Clean == "Not R" ~ "0",
+    is.na(LVFX_Clean) & is.na(CPFX_Clean) ~ NA_character_,
+    is.na(LVFX_Clean) & CPFX_Clean == "Missing" ~ NA_character_,
+    CPFX_Clean == "R" & LVFX_Clean == "R" ~ "1",
+    CPFX_Clean == "R" & LVFX_Clean == "Not R" ~ "S and R",
+    CPFX_Clean == "R" & LVFX_Clean == "Missing" ~ "1",
+    CPFX_Clean == "R" & is.na(LVFX_Clean) ~ "1",
+    CPFX_Clean == "Not R" & LVFX_Clean == "R" ~ "S and R",
+    CPFX_Clean == "Not R" & LVFX_Clean == "Not R" ~ "0",
+    CPFX_Clean == "Not R" & LVFX_Clean == "Missing" ~ "0",
+    CPFX_Clean == "Not R" & is.na(LVFX_Clean) ~ "0",
+    CPFX_Clean == "Missing" & LVFX_Clean == "R" ~ "1",
+    CPFX_Clean == "Missing" & LVFX_Clean == "Not R" ~ "0",
+    CPFX_Clean == "Missing" & LVFX_Clean == "Missing" ~ "Missing",
+    CPFX_Clean == "Missing" & is.na(LVFX_Clean) ~ NA_character_,
+    is.na(CPFX_Clean) & LVFX_Clean == "R" ~ "1",
+    is.na(CPFX_Clean) & LVFX_Clean == "Not R" ~ "0",
+    is.na(CPFX_Clean) & LVFX_Clean == "Missing" ~ "Missing",
+    is.na(CPFX_Clean) & is.na(LVFX_Clean) ~ NA_character_
+  ))
+
+table(JANIS_MASTER$FQ_binary)
+
+#Remove all rows with NA, Missing, S and NA, S and R
+
+#Clean the data set: Remove all rows where the outcome of the FQ_binary column is NA, "Missing", "S and NA", or "S and R"
+
+JANIS_MASTER_FQ<- JANIS_MASTER %>%
+  filter(!is.na(FQ_binary),
+         !FQ_binary %in% c("Missing", "S and R"))
+
+head(JANIS_MASTER_FQ)
+
+table(JANIS_MASTER_FQ$FQ_binary)
+
+#2008-2023
+
+#744,476 observations remaining
+#519,198 0's and 225,278 1's
+
+#Re-level the Prefectures
+
+#Prefecture
+JANIS_MASTER_FQ$Prefecture <- factor(JANIS_MASTER_FQ$Prefecture,
+                                     levels = c("Tokyo", "Hokkaido", "Aomori", "Iwate", "Miyagi", "Akita",
+                                                "Yamagata", "Fukushima", "Ibaraki", "Tochigi", "Gunma",
+                                                "Saitama", "Chiba", "Kanagawa", "Niigata", "Toyama",
+                                                "Ishikawa", "Fukui", "Yamanashi", "Nagano", "Gifu",
+                                                "Shizuoka", "Aichi", "Mie", "Shiga", "Kyoto", "Osaka",
+                                                "Hyogo", "Nara", "Wakayama", "Tottori", "Shimane",
+                                                "Okayama", "Hiroshima", "Yamaguchi", "Tokushima",
+                                                "Kagawa", "Ehime", "Kochi", "Fukuoka", "Nagasaki","Saga",
+                                                "Kumamoto", "Oita", "Miyazaki", "Kagoshima",
+                                                "Okinawa" ))
+
+unique(JANIS_MASTER_FQ$Prefecture)
+
+#Now, get the disease prevalence by prefecture (# of 1's/total observations))
+
+str(JANIS_MASTER_FQ$FQ_binary)
+
+#I want a df where column 1 is Prefecture and column 2 is Prevelance
+
+#I can either get the prevelance without discarding NA's, or I can discard them
+
+#First, I'll check for NA's
+
+unique(JANIS_MASTER_FQ$FQ_binary)
+
+#Turn into numbers
+
+JANIS_MASTER_FQ$FQ_binary <- as.numeric(JANIS_MASTER_FQ$FQ_binary)
+
+#Emmy's approach
+
+FQ_prevalence_counts<- JANIS_MASTER_FQ %>% 
+  group_by(Prefecture) %>% 
+  summarise(Prevalence = (sum(FQ_binary) / n()) * 100,
+  Count_1 = sum(FQ_binary == 1, na.rm = TRUE),  # number of 1s
+  Count_0 = sum(FQ_binary == 0, na.rm = TRUE))  # number of 0s
+
+
+head(FQ_prevalence_counts)
+
+#Save as a .csv file
+
+file_path <- "/Users/emmyobrien/Desktop/Final Thesis Results/FQ_prevalence.csv"
+
+# Write CSV
+
+write.csv(FQ_prevalence_counts, file = file_path, row.names = FALSE)
+
+
+
+
+
+########################################################################
+#Now do the same for Cephalosporins
+########################################################################
+
+JANIS_MASTER <- read.csv("JANIS_WHO_GLASS_Region_bed.csv")
+head(JANIS_MASTER)
+colnames(JANIS_MASTER)
+
+
+# Where Missing + NA = NA and S + NA = 0(limits the number of missing variables)
+
+JANIS_MASTER <- JANIS_MASTER %>%
+  mutate(CS_binary = case_when(
+    CTX_Clean == "R" & CTRX_Clean == "R" ~ "1",
+    CTX_Clean == "R" & CTRX_Clean == "Not R" ~ "S and R",
+    CTX_Clean == "R" & CTRX_Clean == "Missing" ~ "1",
+    CTX_Clean == "R" & is.na(CTRX_Clean)  ~ "1",
+    CTX_Clean == "Not R" & CTRX_Clean == "R" ~ "S and R",
+    CTX_Clean == "Not R" & CTRX_Clean == "Not R" ~ "0",
+    CTX_Clean == "Not R" & CTRX_Clean == "Missing" ~ "0",
+    CTX_Clean == "Not R" & is.na(CTRX_Clean) ~ "0",
+    CTX_Clean == "Missing" & CTRX_Clean == "R" ~ "1",
+    CTX_Clean == "Missing" & CTRX_Clean == "Not R" ~ "0",
+    CTX_Clean == "Missing" & CTRX_Clean == "Missing" ~ "Missing",
+    CTX_Clean == "Missing" & is.na(CTRX_Clean) ~ NA_character_,
+    is.na(CTX_Clean) & CTRX_Clean == "R" ~ "1",
+    is.na(CTX_Clean) & CTRX_Clean == "Not R" ~ "0",
+    is.na(CTX_Clean) & is.na(CTRX_Clean) ~ NA_character_,
+    is.na(CTX_Clean) & CTRX_Clean == "Missing" ~ NA_character_,
+    CTRX_Clean == "R" & CTX_Clean == "R" ~ "1",
+    CTRX_Clean == "R" & CTX_Clean == "Not R" ~ "S and R",
+    CTRX_Clean == "R" & CTX_Clean == "Missing" ~ "1",
+    CTRX_Clean == "R" & is.na(CTX_Clean) ~ "1",
+    CTRX_Clean == "Not R" & CTX_Clean == "R" ~ "S and R",
+    CTRX_Clean == "Not R" & CTX_Clean == "Not R" ~ "0",
+    CTRX_Clean == "Not R" & CTX_Clean == "Missing" ~ "0",
+    CTRX_Clean == "Not R" & is.na(CTX_Clean) ~ "0",
+    CTRX_Clean == "Missing" & CTX_Clean == "R" ~ "1",
+    CTRX_Clean == "Missing" & CTX_Clean == "Not R" ~ "0",
+    CTRX_Clean == "Missing" & CTX_Clean == "Missing" ~ "Missing",
+    CTRX_Clean == "Missing" & is.na(CTX_Clean) ~ NA_character_,
+    is.na(CTRX_Clean) & CTX_Clean == "R" ~ "1",
+    is.na(CTRX_Clean) & CTX_Clean == "Not R" ~ "0",
+    is.na(CTRX_Clean) & CTX_Clean == "Missing" ~ "Missing",
+    is.na(CTRX_Clean) & is.na(CTX_Clean) ~ NA_character_
+  ))
+
+table(JANIS_MASTER$CS_binary)
+
+#Remove all rows with NA, Missing, S and NA, S and R
+
+#Clean the data set: Remove all rows where the outcome of the CS_binary column is NA, "Missing", "S and NA", or "S and R"
+
+JANIS_MASTER_Ceph <- JANIS_MASTER %>%
+  filter(!is.na(CS_binary),
+         !CS_binary %in% c("Missing", "S and R"))
+
+head(JANIS_MASTER_Ceph)
+table(JANIS_MASTER_Ceph$CS_binary)
+
+#2008-2023
+
+#644271 observations remaining
+#572,983 0's and 71,288 1's
+
+
+JANIS_MASTER_Ceph$Prefecture <- factor(JANIS_MASTER_Ceph$Prefecture,
+                                       levels = c("Tokyo", "Hokkaido", "Aomori", "Iwate", "Miyagi", "Akita",
+                                                  "Yamagata", "Fukushima", "Ibaraki", "Tochigi", "Gunma",
+                                                  "Saitama", "Chiba", "Kanagawa", "Niigata", "Toyama",
+                                                  "Ishikawa", "Fukui", "Yamanashi", "Nagano", "Gifu",
+                                                  "Shizuoka", "Aichi", "Mie", "Shiga", "Kyoto", "Osaka",
+                                                  "Hyogo", "Nara", "Wakayama", "Tottori", "Shimane",
+                                                  "Okayama", "Hiroshima", "Yamaguchi", "Tokushima",
+                                                  "Kagawa", "Ehime", "Kochi", "Fukuoka", "Nagasaki","Saga",
+                                                  "Kumamoto", "Oita", "Miyazaki", "Kagoshima",
+                                                  "Okinawa" ))
+
+unique(JANIS_MASTER_Ceph$Prefecture )
+
+
+str(JANIS_MASTER_Ceph$CS_binary)
+
+#I want a df where column 1 is Prefecture and column 2 is Prevelance
+
+#I can either get the prevelance without discarding NA's, or I can discard them
+
+#First, I'll check for NA's
+
+unique(JANIS_MASTER_Ceph$CS_binary)
+
+#Turn into numbers
+
+JANIS_MASTER_Ceph$CS_binary <- as.numeric(JANIS_MASTER_Ceph$CS_binary)
+
+#Emmy's approach
+
+CS_prevalence_counts<- JANIS_MASTER_Ceph %>% 
+  group_by(Prefecture) %>% 
+  summarise(Prevalence = (sum(CS_binary) / n()) * 100,
+            Count_1 = sum(CS_binary == 1, na.rm = TRUE),  # number of 1s
+            Count_0 = sum(CS_binary == 0, na.rm = TRUE))  # number of 0s
+
+
+head(CS_prevalence_counts)
+
+#Save as a .csv file
+
+file_path <- "/Users/emmyobrien/Desktop/Final Thesis Results/CS_prevalence.csv"
+
+# Write CSV
+
+write.csv(CS_prevalence_counts, file = file_path, row.names = FALSE)
+
+########################################################################
+#Now do the same for Penems
+########################################################################
+
+JANIS_MASTER <- read.csv("JANIS_WHO_GLASS_Region_bed.csv")
+head(JANIS_MASTER)
+colnames(JANIS_MASTER)
+
+
+# Where Missing + NA = NA and S + NA = 0(limits the number of missing variables)
+JANIS_MASTER <- JANIS_MASTER %>%
+  mutate(PM_binary = case_when(
+    IPM_Clean == "R" & MEPM_Clean == "R" ~ "1",
+    IPM_Clean == "R" & MEPM_Clean == "Not R" ~ "S and R",
+    IPM_Clean == "R" & MEPM_Clean == "Missing" ~ "1",
+    IPM_Clean == "R" & is.na(MEPM_Clean)  ~ "1",
+    IPM_Clean == "Not R" & MEPM_Clean == "R" ~ "S and R",
+    IPM_Clean == "Not R" & MEPM_Clean == "Not R" ~ "0",
+    IPM_Clean == "Not R" & MEPM_Clean == "Missing" ~ "0",
+    IPM_Clean == "Not R" & is.na(MEPM_Clean) ~ "0",
+    IPM_Clean == "Missing" & MEPM_Clean == "R" ~ "1",
+    IPM_Clean == "Missing" & MEPM_Clean == "Not R" ~ "0",
+    IPM_Clean == "Missing" & MEPM_Clean == "Missing" ~ "Missing",
+    IPM_Clean == "Missing" & is.na(MEPM_Clean) ~ NA_character_,
+    is.na(IPM_Clean) & MEPM_Clean == "R" ~ "1",
+    is.na(IPM_Clean) & MEPM_Clean == "Not R" ~ "0",
+    is.na(IPM_Clean) & is.na(MEPM_Clean) ~ NA_character_,
+    is.na(IPM_Clean) & MEPM_Clean == "Missing" ~ NA_character_,
+    MEPM_Clean == "R" & IPM_Clean == "R" ~ "1",
+    MEPM_Clean == "R" & IPM_Clean == "Not R" ~ "S and R",
+    MEPM_Clean == "R" & IPM_Clean == "Missing" ~ "1",
+    MEPM_Clean == "R" & is.na(IPM_Clean) ~ "1",
+    MEPM_Clean == "Not R" & IPM_Clean == "R" ~ "S and R",
+    MEPM_Clean == "Not R" & IPM_Clean == "Not R" ~ "0",
+    MEPM_Clean == "Not R" & IPM_Clean == "Missing" ~ "0",
+    MEPM_Clean == "Not R" & is.na(IPM_Clean) ~ "0",
+    MEPM_Clean == "Missing" & IPM_Clean == "R" ~ "1",
+    MEPM_Clean == "Missing" & IPM_Clean == "Not R" ~ "0",
+    MEPM_Clean == "Missing" & IPM_Clean == "Missing" ~ "Missing",
+    MEPM_Clean == "Missing" & is.na(IPM_Clean) ~ NA_character_,
+    is.na(MEPM_Clean) & IPM_Clean == "R" ~ "1",
+    is.na(MEPM_Clean) & IPM_Clean == "Not R" ~ "0",
+    is.na(MEPM_Clean) & IPM_Clean == "Missing" ~ "Missing",
+    is.na(MEPM_Clean) & is.na(IPM_Clean) ~ NA_character_
+  ))
+
+table(JANIS_MASTER$PM_binary)
+
+#Remove all rows with NA, Missing, S and NA, S and R
+
+#Clean the data set: Remove all rows where the outcome of the PM_binary column is NA, "Missing", "S and NA", or "S and R"
+
+JANIS_MASTER_PM <- JANIS_MASTER %>%
+  filter(!is.na(PM_binary),
+         !PM_binary %in% c("Missing", "S and R"))
+
+head(JANIS_MASTER_PM)
+
+table(JANIS_MASTER_PM$PM_binary)
+
+#2008-2023
+
+#784,848 observations remaining
+
+#784,584 0's and 264 1's
+
+
+JANIS_MASTER_PM$Prefecture <- factor(JANIS_MASTER_PM$Prefecture,
+                                       levels = c("Tokyo", "Hokkaido", "Aomori", "Iwate", "Miyagi", "Akita",
+                                                  "Yamagata", "Fukushima", "Ibaraki", "Tochigi", "Gunma",
+                                                  "Saitama", "Chiba", "Kanagawa", "Niigata", "Toyama",
+                                                  "Ishikawa", "Fukui", "Yamanashi", "Nagano", "Gifu",
+                                                  "Shizuoka", "Aichi", "Mie", "Shiga", "Kyoto", "Osaka",
+                                                  "Hyogo", "Nara", "Wakayama", "Tottori", "Shimane",
+                                                  "Okayama", "Hiroshima", "Yamaguchi", "Tokushima",
+                                                  "Kagawa", "Ehime", "Kochi", "Fukuoka", "Nagasaki","Saga",
+                                                  "Kumamoto", "Oita", "Miyazaki", "Kagoshima",
+                                                  "Okinawa" ))
+
+unique(JANIS_MASTER_PM$Prefecture )
+
+
+str(JANIS_MASTER_PM$PM_binary)
+
+#I want a df where column 1 is Prefecture and column 2 is Prevelance
+
+#I can either get the prevelance without discarding NA's, or I can discard them
+
+#First, I'll check for NA's
+
+unique(JANIS_MASTER_PM$PM_binary)
+
+#Turn into numbers
+
+JANIS_MASTER_PM$PM_binary <- as.numeric(JANIS_MASTER_PM$PM_binary)
+
+#Emmy's approach
+
+PM_prevalence_counts<- JANIS_MASTER_PM %>% 
+  group_by(Prefecture) %>% 
+  summarise(Prevalence = (sum(PM_binary) / n()) * 100,
+            Count_1 = sum(PM_binary == 1, na.rm = TRUE),  # number of 1s
+            Count_0 = sum(PM_binary == 0, na.rm = TRUE))  # number of 0s
+
+
+head(PM_prevalence_counts)
+
+#Save as a .csv file
+
+file_path <- "/Users/emmyobrien/Desktop/Final Thesis Results/PM_prevalence.csv"
+
+# Write CSV
+
+write.csv(PM_prevalence_counts, file = file_path, row.names = FALSE)
+
